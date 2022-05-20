@@ -79,12 +79,12 @@ class EFA_DTI_Dataset(Dataset):
                 self.target_pts = pickle.load(f)
 
     def __getitem__(self, idx):
-        # Raw data
+        # Raw dataset
         smiles = self.data["SMILES"][idx]
         sequence = self.data["SEQUENCE"][idx]
         ic50 = self.data["IC50"][idx]
 
-        # Preprocessed data
+        # Preprocessed dataset
         g = self.ligand_graphs[smiles]
         fp = th.as_tensor(self.ligand_fps[smiles], dtype=th.float32).unsqueeze(0)
         pt = th.as_tensor(self.target_pts[sequence], dtype=th.float32).unsqueeze(0)

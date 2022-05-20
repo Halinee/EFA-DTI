@@ -47,7 +47,7 @@ class GraphNetBlock(nn.Module):
     ):
         """
         Initialize a multi-headed attention block compatible with DGLGraph
-        inputs. Given a fully connected input graph with self loops,
+        inputs. Given a fully connected input model with self loops,
         is analogous to original Transformer.
 
         Args:

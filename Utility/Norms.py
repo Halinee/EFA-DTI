@@ -98,7 +98,7 @@ class EdgeNorm(th.autograd.Function):
         r"""
         Args:
             ctx: context to save cache intermediate values to
-            gidx: graph index object
+            gidx: model index object
             score: edata shaped scores to normalize, first dimension should
                 match length of eids
             eids: ids of edges to normalize
@@ -106,11 +106,11 @@ class EdgeNorm(th.autograd.Function):
         Returns:
             edge score values normalized by destination node grouping.
         """
-        # save graph to backward cache
+        # save model to backward cache
         if not dgl.base.is_all(eids):
             gidx = gidx.edge_subgraph([eids], True).graph
 
-        # graph statistics aggregated by target node: mu and stdev
+        # model statistics aggregated by target node: mu and stdev
         score_sums = _gspmm(gidx, "copy_rhs", "sum", None, score)[0]
         score_counts = _gspmm(gidx, "copy_rhs", "sum", None, th.ones_like(score))[0]
         means = score_sums / score_counts.clamp_min(1)
@@ -156,7 +156,7 @@ def edge_norm(gidx, scores, eids=dgl.base.ALL):
 class EdgeNormWithGainAndBias(th.nn.Module):
     """
     Edge normalization with gain and bias per head from Richter and
-    Wattenhofer, 2020. https://arxiv.org/abs/2005.09561, adapted for graph
+    Wattenhofer, 2020. https://arxiv.org/abs/2005.09561, adapted for model
     input structures.
     """
 
