@@ -1,4 +1,5 @@
 import math
+from typing import Dict
 
 import dgl
 import dgl.function as fn
@@ -25,17 +26,7 @@ class ActGLU(nn.Module):
 
 
 class GraphNetBlock(nn.Module):
-    def __init__(
-        self,
-        d_in: int = 256,
-        qk_dim: int = 64,
-        v_dim: int = 64,
-        n_heads: int = 8,
-        dropout: float = 0.2,
-        attn_weight_norm="norm",
-        act: str = "relu",
-        norm_type="gn",
-    ):
+    def __init__(self, graph_params: Dict):
         """
         Initialize a multi-headed attention block compatible with DGLGraph
         inputs. Given a fully connected input model with self loops,
@@ -48,23 +39,24 @@ class GraphNetBlock(nn.Module):
             dropout: dropout probability
             attn_weight_norm: attention pooling method, 'norm' or 'softmax'
         """
-        super().__init__()
-        self.qk_dim = qk_dim
-        self.v_dim = v_dim
-        self.n_heads = n_heads
-        self.d_hidden = n_heads * v_dim
+        super(GraphNetBlock, self).__init__()
+        self.in_dim = graph_params["mol_dim"]
+        self.qk_dim = int(self.in_dim // self.in_dim)
+        self.v_dim = max(64, int(self.in_dim // self.in_dim))
+        self.n_heads = graph_params["mol_n_heads"]
+        self.d_hidden = self.n_heads * self.v_dim
 
         self.attn_weight_norm = {
-            "norm": EdgeNormWithGainAndBias(n_heads),
+            "norm": EdgeNormWithGainAndBias(self.n_heads),
             "softmax": edge_softmax,
-        }[attn_weight_norm]
-        self.attn_dropout = nn.Dropout(dropout)
+        }[graph_params["attn_weight_norm"]]
+        self.attn_dropout = nn.Dropout(graph_params["dropout"])
 
         def pwff():
             return nn.Sequential(
-                ActGLU(d_in, d_in * 2, act),
-                nn.Dropout(dropout),
-                nn.Linear(d_in * 2, d_in),
+                ActGLU(self.in_dim, self.in_dim * 2, graph_params["act"]),
+                nn.Dropout(self.in_dim["dropout"]),
+                nn.Linear(self.in_dim * 2, self.in_dim),
             )
 
         self.node_rezero = ReZero()
@@ -74,15 +66,19 @@ class GraphNetBlock(nn.Module):
         self.node_ff2 = pwff()
         self.edge_ff2 = pwff()
 
-        self.q_proj = nn.Linear(d_in, self.qk_dim * self.n_heads)
-        self.k_proj = nn.Linear(d_in, self.qk_dim * self.n_heads)
-        self.v_proj = nn.Linear(d_in, self.v_dim * self.n_heads)
-        self.eq_proj = nn.Linear(d_in, self.qk_dim * self.n_heads)
-        self.ek_proj = nn.Linear(d_in, self.qk_dim * self.n_heads)
-        self.ev_proj = nn.Linear(d_in, self.v_dim * self.n_heads)
+        self.q_proj = nn.Linear(self.in_dim, self.qk_dim * self.n_heads)
+        self.k_proj = nn.Linear(self.in_dim, self.qk_dim * self.n_heads)
+        self.v_proj = nn.Linear(self.in_dim, self.v_dim * self.n_heads)
+        self.eq_proj = nn.Linear(self.in_dim, self.qk_dim * self.n_heads)
+        self.ek_proj = nn.Linear(self.in_dim, self.qk_dim * self.n_heads)
+        self.ev_proj = nn.Linear(self.in_dim, self.v_dim * self.n_heads)
 
         self.mix_nodes = GraphNormAndProj(
-            n_heads * v_dim, d_in, act, dropout, norm_type
+            d_in=self.n_heads * self.v_dim,
+            d_out=self.in_dim,
+            act=graph_params["act"],
+            dropout=graph_params["dropout"],
+            norm_type=graph_params["norm_type"],
         )
 
     def forward(self, g: dgl.DGLGraph, n: th.Tensor, e: th.Tensor):
@@ -135,43 +131,21 @@ class GraphNetBlock(nn.Module):
 
 
 class GraphNet(nn.Module):
-    def __init__(
-        self,
-        features: int = 256,
-        qk_dim: int = 32,
-        v_dim: int = 64,
-        n_layers: int = 8,
-        n_heads: int = 8,
-        dropout: float = 0.2,
-        attn_weight_norm: str = "norm",
-        act: str = "relu",
-        norm_type: str = "gn",
-        pool_type: str = "deepset",
-    ):
+    def __init__(self, graph_params: Dict):
         super(GraphNet, self).__init__()
-        self.n_layers = n_layers
-        self.n_heads = n_heads
+        self.dim = graph_params["mol_dim"]
+        self.n_layers = graph_params["mol_n_layers"]
+        self.atom_enc = AtomEncoder(self.dim)
+        self.bond_enc = BondEncoder(self.dim)
         self.attn_layers = nn.ModuleList()
-        self.atom_enc = AtomEncoder(features)
-        self.bond_enc = BondEncoder(features)
 
-        for _ in range(n_layers):
-            self.attn_layers.append(
-                GraphNetBlock(
-                    d_in=features,
-                    qk_dim=qk_dim,
-                    v_dim=v_dim,
-                    dropout=dropout,
-                    act=act,
-                    norm_type=norm_type,
-                    attn_weight_norm=attn_weight_norm,
-                )
-            )
+        for _ in range(self.n_layers):
+            self.attn_layers.append(GraphNetBlock(graph_params))
 
-        if pool_type == "deepset":
-            self.readout = DeepSet(features, features, dropout=dropout)
-        elif pool_type == "mean_max":
-            self.readout = MeanMaxPool(features * 2)
+        if graph_params["pool_type"] == "deepset":
+            self.readout = DeepSet(self.dim, self.dim, dropout=graph_params["dropout"])
+        elif graph_params["pool_type"] == "mean_max":
+            self.readout = MeanMaxPool(self.dim * 2)
 
     def forward(self, g: dgl.DGLGraph):
         n = self.atom_enc(g.ndata["feat"])

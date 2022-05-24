@@ -10,23 +10,34 @@ project_params:
   logging_interval: "step"
   save_path: "/raid/dataset/DTI/checkpoint/"
 module_params:
-  mol_dim: 128
-  mol_n_layers: 8
-  mol_n_heads: 8
-  mol_attn: "softmax"
-  act: "gelu"
-  attn_dropout: 0.1
-  dropout: 0.3
-  graph_norm_type: "ln"
-  fp_dims: [2048, 512, 128]
-  prottrans_dims: [2048, 512, 256]
-  output_dims: [2048, 256, 1]
-  graph_pool: "mean_max"
-  lr: 0.0001
-  lr_anneal_epochs: 500
-  weight_decay: 1e-8
-  eps: 1e-16
-  scheduler: "Lambda"
+  graph_params:
+    mol_dim: 128
+    mol_n_layers: 8
+    mol_n_heads: 8
+    mol_attn: "softmax"
+    act: "gelu"
+    attn_dropout: 0.1
+    dropout: 0.3
+    graph_norm_type: "ln"
+    graph_pool: "mean_max"
+  fingerprint_params:
+    fp_dims: [2048, 512, 128]
+    dropout: 0.3
+    act: "gelu"
+  prottrans_params:
+    prottrans_dims: [2048, 512, 256]
+    dropout: 0.3
+    act: "gelu"
+  output_params:
+    output_dims: [2048, 256, 1]
+    dropout: 0.3
+    act: "gelu"
+  optimizer_params:
+    lr: 0.0001
+    lr_anneal_epochs: 500
+    weight_decay: 1e-8
+    eps: 1e-16
+    scheduler: "Lambda"
 dataset_params:
   data_dir: "/raid/dataset/DTI/raw/"
   data_name: "BindingDB_IC50.ftr"

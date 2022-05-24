@@ -16,7 +16,7 @@ module_params = cfg["module_params"]
 dataset_params = cfg["dataset_params"]
 
 # Set model and dataloader
-net = DTIModule(**module_params)
+net = DTIModule(module_params)
 data = DTIDataModule(**dataset_params)
 
 # Set wandb

@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict
 
 import pytorch_lightning as pl
 import torch as th
@@ -12,48 +12,22 @@ from model.efa_graph import GraphNet
 
 
 class DTIModule(pl.LightningModule):
-    def __init__(
-        self,
-        mol_dim: int = 196,
-        mol_n_layers: int = 6,
-        mol_n_heads: int = 6,
-        mol_attn: str = "norm",
-        act: str = "relu",
-        attn_dropout: float = 0.1,
-        dropout: float = 0.3,
-        graph_norm_type: str = "gn",
-        fp_dims: List = [2048, 512, 128],
-        prottrans_dims: List = [2048, 1024, 512],
-        output_dims: List = [2048, 512, 1],
-        graph_pool: str = "deepset",
-        lr: float = 2e-3,
-        lr_anneal_epochs: int = 200,
-        weight_decay: float = 1e-2,
-        eps: float = 1e-16,
-    ):
+    def __init__(self, module_params: Dict):
         super(DTIModule, self).__init__()
         self.save_hyperparameters()
 
-        self.mol_enc = GraphNet(
-            features=mol_dim,
-            qk_dim=int(mol_dim // mol_n_heads),
-            v_dim=max(64, int(mol_dim // mol_n_heads)),
-            n_layers=mol_n_layers,
-            n_heads=mol_n_heads,
-            dropout=attn_dropout,
-            act=act,
-            attn_weight_norm=mol_attn,
-            norm_type=graph_norm_type,
-            pool_type=graph_pool,
+        self.mol_enc = GraphNet(module_params["graph_params"])
+        self.fingerprint_enc = MLP(module_params["fingerprint_params"])
+        self.prottrans_enc = MLP(module_params["prottrans_params"])
+        out_dim = (
+            self.mol_enc.readout.out_features
+            + self.fingerprint_enc[-1].out_features
+            + self.prottrans_enc[-1].out_features
         )
-        self.fingerprint_enc = MLP(*fp_dims, dropout=dropout, act=act)
-        self.prottrans_enc = MLP(*prottrans_dims, dropout=dropout, act=act)
-        outd = (
-            mol_dim * (1 if graph_pool == "deepset" else 2)
-            + fp_dims[-1]
-            + prottrans_dims[-1]
+        module_params["output_params"]["output_dims"] = (
+            out_dim + module_params["output_params"]["output_dims"]
         )
-        self.output = MLP(outd, *output_dims, dropout=dropout, act=act)
+        self.output = MLP(module_params["output_params"])
 
     def forward(self, g, fp, pt):
         g_emb = self.mol_enc(g)
@@ -66,16 +40,19 @@ class DTIModule(pl.LightningModule):
         y = batch[-1]
         g, fp, pt, _ = batch
         yhat = self(g, fp, pt).squeeze()
+
         return yhat, y
 
     def training_step(self, batch, _=None):
         yhat, y = self.sharing_step(batch)
         mse = F.mse_loss(yhat, y)
         self.log("train_mse", mse)
+
         return mse
 
     def validation_step(self, batch, _=None):
         y, yhat = self.sharing_step(batch)
+
         return {"yhat": yhat, "y": y}
 
     def validation_epoch_end(self, outputs):
@@ -115,4 +92,5 @@ class DTIModule(pl.LightningModule):
             "interval": "epoch",
             "frequency": 1,
         }
+
         return [optimizer], [scheduler]

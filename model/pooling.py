@@ -6,6 +6,7 @@ import torch.nn as nn
 class DeepSet(nn.Module):
     def __init__(self, d_in: int, d_out: int, dropout: float = 0.1):
         super(DeepSet, self).__init__()
+        self.out_features = d_out
         self.glu = nn.Sequential(nn.Linear(d_in, d_in * 2), nn.GLU())
         self.agg = nn.Sequential(
             nn.BatchNorm1d(d_in), nn.Dropout(dropout), nn.Linear(d_in, d_out)
@@ -21,6 +22,7 @@ class DeepSet(nn.Module):
 class MeanMaxPool(nn.Module):
     def __init__(self, dim: int):
         super(MeanMaxPool, self).__init__()
+        self.out_features = dim
         self.gain = nn.Parameter(th.ones(dim))
         self.bias = nn.Parameter(th.zeros(dim))
 

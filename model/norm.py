@@ -1,7 +1,7 @@
 import dgl
 import torch as th
+import torch.nn as nn
 from dgl.backend.pytorch.sparse import _gsddmm, _gspmm, gspmm, gsddmm
-from torch import nn
 
 
 class ReZero(nn.Module):
@@ -148,7 +148,7 @@ def edge_norm(gidx, scores, eids=dgl.base.ALL):
     return EdgeNorm.apply(gidx._graph, scores, eids)
 
 
-class EdgeNormWithGainAndBias(th.nn.Module):
+class EdgeNormWithGainAndBias(nn.Module):
     """
     Edge normalization with gain and bias per head from Richter and
     Wattenhofer, 2020. https://arxiv.org/abs/2005.09561, adapted for model

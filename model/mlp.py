@@ -1,9 +1,11 @@
+from typing import List
+
 import torch.nn as nn
 
 
 class MLP(nn.Sequential):
     def __init__(
-        self, *dims, norm: bool = True, dropout: float = 0.1, act: str = "relu"
+        self, dims: List, norm: bool = True, dropout: float = 0.1, act: str = "relu"
     ):
         acts = {"gelu": nn.GELU, "relu": nn.ReLU}
         act = acts[act]
